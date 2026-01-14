@@ -6,7 +6,7 @@
 <style>
 body {
     font-family: "Noto Sans KR", sans-serif;
-    background: #f4f6f9;
+    background: #f5f6f8;
     padding: 30px;
 }
 h1 { margin-bottom: 20px; }
@@ -31,7 +31,7 @@ button {
     cursor: pointer;
 }
 
-button.secondary {
+button.gray {
     background: #6c757d;
 }
 
@@ -39,7 +39,7 @@ button.secondary {
     background: white;
     padding: 18px;
     border-radius: 10px;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
 }
 
 .meta {
@@ -49,8 +49,6 @@ button.secondary {
 }
 
 a.source {
-    display: inline-block;
-    margin-top: 6px;
     font-size: 13px;
     color: #2f5bea;
     text-decoration: none;
@@ -73,21 +71,15 @@ a.source {
     </select>
 
     <button type="submit">검색</button>
-
-    <button type="submit" name="range" value="all" class="secondary">전체</button>
-    <button type="submit" name="range" value="24h" class="secondary">24시간</button>
-
-    <button type="submit" name="scrap" value="1">
-        언론보도 스크랩 자동 작성
-    </button>
+    <button type="submit" name="range" value="all" class="gray">전체</button>
+    <button type="submit" name="range" value="24h" class="gray">24시간</button>
+    <button type="submit" name="scrap" value="1">언론보도 스크랩 자동 작성</button>
 </form>
 
 {% for a in articles %}
 <div class="article">
     <div class="meta">
-        {{ a.category }} |
-        {{ a.published_at.strftime("%Y.%m.%d %H:%M") }} |
-        조회수 {{ a.views }}
+        {{ a.category }} | {{ a.published_at.strftime("%Y.%m.%d %H:%M") }}
     </div>
     <strong>{{ a.title }}</strong>
     <p>{{ a.summary }}</p>
