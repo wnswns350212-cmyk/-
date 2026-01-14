@@ -1,4 +1,2 @@
-flask
+Flask
 feedparser
-openai
-python-dateutil
