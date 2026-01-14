@@ -1,105 +1,71 @@
-from flask import Flask, request, render_template
+from flask import Flask, render_template, request
 import requests
-import os
 from datetime import datetime, timedelta
 from dateutil import parser
 
 app = Flask(__name__)
 
-NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID")
-NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET")
+NAVER_CLIENT_ID = "YOUR_CLIENT_ID"
+NAVER_CLIENT_SECRET = "YOUR_CLIENT_SECRET"
 
-NAVER_NEWS_API = "https://openapi.naver.com/v1/search/news.json"
-
-CATEGORIES = {
-    "전체": [],
-    "한라대": ["한라대학교", "한라대"],
-    "대학이슈": ["대학", "대학교", "캠퍼스"],
-    "교육": ["교육부", "교육정책", "교육"],
-    "청년": ["청년", "청년정책"],
-    "정책": ["정책", "정부"]
-}
-
-def fetch_news(query, display=100):
+def naver_search(query):
+    url = "https://openapi.naver.com/v1/search/news.json"
     headers = {
         "X-Naver-Client-Id": NAVER_CLIENT_ID,
         "X-Naver-Client-Secret": NAVER_CLIENT_SECRET
     }
     params = {
         "query": query,
-        "display": display,
+        "display": 100,
         "sort": "date"
     }
-    res = requests.get(NAVER_NEWS_API, headers=headers, params=params)
-    if res.status_code != 200:
-        return []
+    res = requests.get(url, headers=headers, params=params)
+    return res.json().get("items", [])
 
-    items = res.json().get("items", [])
-    articles = []
+def classify(title):
+    if "평생교육" in title or "RISE" in title:
+        return "평생교육"
+    if "입시" in title or "수능" in title:
+        return "입시"
+    if "대학" in title or "대학교" in title:
+        return "대학정책"
+    return "기타"
 
-    for item in items:
-        try:
-            published = parser.parse(item["pubDate"])
-        except:
-            continue
-
-        articles.append({
-            "title": item["title"].replace("<b>", "").replace("</b>", ""),
-            "summary": item["description"].replace("<b>", "").replace("</b>", ""),
-            "link": item["link"],
-            "date": published
-        })
-
-    return articles
-
-
-def filter_by_time(articles, mode):
-    if mode != "24h":
-        return articles
-
-    limit = datetime.now() - timedelta(hours=24)
-    return [a for a in articles if a["date"] >= limit]
-
-
-def filter_by_category(articles, category):
-    if category == "전체":
-        return articles
-
-    keywords = CATEGORIES.get(category, [])
-    result = []
-
-    for a in articles:
-        text = a["title"] + a["summary"]
-        if any(k in text for k in keywords):
-            result.append(a)
-
-    return result
-
-
-@app.route("/", methods=["GET"])
+@app.route("/")
 def index():
     query = request.args.get("query", "")
+    time_filter = request.args.get("time", "all")
     category = request.args.get("category", "전체")
-    time_mode = request.args.get("time", "all")
 
     articles = []
     if query:
-        articles = fetch_news(query)
-        articles = filter_by_time(articles, time_mode)
-        articles = filter_by_category(articles, category)
+        raw = naver_search(query)
+        now = datetime.now()
 
-        articles.sort(key=lambda x: x["date"], reverse=True)
+        for r in raw:
+            pub = parser.parse(r["pubDate"]).replace(tzinfo=None)
+            if time_filter == "24h" and pub < now - timedelta(hours=24):
+                continue
+
+            cat = classify(r["title"])
+            if category != "전체" and cat != category:
+                continue
+
+            articles.append({
+                "title": r["title"].replace("<b>", "").replace("</b>", ""),
+                "summary": r["description"].replace("<b>", "").replace("</b>", ""),
+                "date": pub.strftime("%Y.%m.%d %H:%M"),
+                "category": cat,
+                "link": r["originallink"]
+            })
 
     return render_template(
         "index.html",
         articles=articles,
         query=query,
-        category=category,
-        time_mode=time_mode,
-        categories=CATEGORIES.keys()
+        time_filter=time_filter,
+        category=category
     )
 
-
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=10000)
