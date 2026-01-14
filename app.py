@@ -1,37 +1,52 @@
-import os
-import feedparser
 from flask import Flask, render_template, request
+import feedparser
+import html
+import os
 from datetime import datetime, timedelta
+from dateutil import parser as dateparser
 import openai
-
-# OpenAI 설정
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 app = Flask(__name__)
 
-# ===============================
-# 설정
-# ===============================
-RSS_FEEDS = [
-    "https://news.google.com/rss/search?q=대학",
-    "https://news.google.com/rss/search?q=교육",
-    "https://news.google.com/rss/search?q=청년",
-    "https://news.google.com/rss/search?q=정책",
-    "https://news.google.com/rss/search?q=한라대학교"
-]
+# 🔑 OpenAI
+openai.api_key = os.environ.get("OPENAI_API_KEY")
 
+# ======================
+# 키워드 / 카테고리 설정
+# ======================
 CATEGORIES = {
     "한라대": ["한라대학교", "한라대"],
-    "대학이슈": ["대학", "캠퍼스"],
-    "대학": ["대학"],
-    "교육": ["교육"],
-    "청년": ["청년"],
-    "정책": ["정책"]
+    "대학이슈": ["대학", "대학교", "총장", "캠퍼스"],
+    "대학": ["대학", "대학교"],
+    "교육": ["교육부", "교육정책", "교육"],
+    "청년": ["청년", "취업", "청년정책"],
+    "정책": ["정부", "정책", "국회"]
 }
 
-# ===============================
-# AI 요약 함수
-# ===============================
+BASE_KEYWORDS = sum(CATEGORIES.values(), [])
+
+# ======================
+# RSS (한국 뉴스 중심)
+# ======================
+FEEDS = [
+    ("Daum", "https://news.daum.net/rss/search?q=대학"),
+    ("Google", "https://news.google.com/rss/search?q=대학&hl=ko&gl=KR&ceid=KR:ko")
+]
+
+# ======================
+# 유틸 함수
+# ======================
+def parse_date(entry):
+    try:
+        if hasattr(entry, "published"):
+            return dateparser.parse(entry.published)
+    except:
+        pass
+    return None
+
+def contains_keywords(text, keywords):
+    return any(k in text for k in keywords)
+
 def ai_summary(text):
     try:
         res = openai.ChatCompletion.create(
@@ -39,116 +54,98 @@ def ai_summary(text):
             messages=[
                 {
                     "role": "system",
-                    "content": "너는 대학 홍보팀을 돕는 뉴스 요약 AI다. 핵심만 2~3줄로 요약해라."
+                    "content": "너는 한국 대학 홍보팀·기획처를 위한 뉴스 요약 AI다."
                 },
                 {
                     "role": "user",
-                    "content": text[:1500]
+                    "content": f"""
+아래 기사를 대학 실무자가 바로 이해할 수 있게
+핵심만 2~3문장으로 요약해줘.
+
+기사:
+{text}
+"""
                 }
-            ]
+            ],
+            temperature=0.3
         )
         return res.choices[0].message.content.strip()
-    except Exception:
-        return "요약을 불러올 수 없습니다."
+    except:
+        return "요약 정보를 불러오지 못했습니다."
 
-# ===============================
+# ======================
 # 뉴스 수집
-# ===============================
-def fetch_news():
+# ======================
+def collect_news(category=None, only_today=False):
     articles = []
     seen = set()
+    now = datetime.now()
 
-    for url in RSS_FEEDS:
+    for source, url in FEEDS:
         feed = feedparser.parse(url)
+
         for e in feed.entries:
-            title = e.get("title", "")
-            link = e.get("link", "")
-            published = e.get("published", "")
+            title = html.unescape(e.title)
+            summary = html.unescape(e.get("summary", ""))
+            text = title + " " + summary
+
+            if not contains_keywords(text, BASE_KEYWORDS):
+                continue
+
+            if category:
+                if not contains_keywords(text, CATEGORIES.get(category, [])):
+                    continue
+
+            dt = parse_date(e)
+            if only_today and (not dt or dt < now.replace(hour=0, minute=0)):
+                continue
 
             if title in seen:
                 continue
             seen.add(title)
 
-            try:
-                pub_dt = datetime(*e.published_parsed[:6])
-            except Exception:
-                pub_dt = datetime.now()
-
-            summary = ai_summary(title)
-
             articles.append({
                 "title": title,
-                "link": link,
-                "published": pub_dt,
-                "published_str": pub_dt.strftime("%Y.%m.%d. %H:%M"),
-                "summary": summary
+                "date": dt.strftime("%Y.%m.%d. %H:%M") if dt else "날짜 없음",
+                "raw_date": dt or datetime.min,
+                "link": e.link,
+                "summary": ai_summary(text)
             })
 
-    articles.sort(key=lambda x: x["published"], reverse=True)
+    articles.sort(key=lambda x: x["raw_date"], reverse=True)
     return articles
 
-# ===============================
-# 중요 기사 TOP5 (오늘 기준)
-# ===============================
-def top5_today(articles):
-    today = datetime.now().date()
-    today_articles = [a for a in articles if a["published"].date() == today]
+# ======================
+# TOP 5 오늘의 핵심 뉴스
+# ======================
+def top5_today():
+    today_articles = collect_news(only_today=True)
+    return today_articles[:5]
 
-    scored = []
-    for a in today_articles:
-        prompt = f"""
-다음 뉴스가 대학에서 얼마나 중요한지 1~10점으로 평가해라.
-
-뉴스 제목: {a['title']}
-"""
-        try:
-            res = openai.ChatCompletion.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            score = int("".join(filter(str.isdigit, res.choices[0].message.content)))
-        except Exception:
-            score = 0
-
-        scored.append((score, a))
-
-    scored.sort(reverse=True, key=lambda x: x[0])
-    return [a for _, a in scored[:5]]
-
-# ===============================
-# 메인 라우트
-# ===============================
-@app.route("/", methods=["GET"])
+# ======================
+# 라우트
+# ======================
+@app.route("/")
 def index():
-    query = request.args.get("query", "")
-    category = request.args.get("category", "")
-    show_top5 = request.args.get("top5")
+    query = request.args.get("q")
+    category = request.args.get("category")
+    top5 = request.args.get("top5")
 
-    articles = fetch_news()
-
-    # 검색 필터
-    if query:
-        articles = [a for a in articles if query in a["title"]]
-
-    # 카테고리 필터
-    if category and category in CATEGORIES:
-        keywords = CATEGORIES[category]
-        articles = [
-            a for a in articles
-            if any(k in a["title"] for k in keywords)
-        ]
-
-    top5 = top5_today(articles) if show_top5 else []
+    if top5:
+        articles = top5_today()
+    else:
+        articles = collect_news(category=category)
 
     return render_template(
         "index.html",
         articles=articles,
         categories=CATEGORIES.keys(),
-        selected_category=category,
-        query=query,
-        top5=top5
+        selected_category=category
     )
 
-# ===============================
+# ======================
+# 실행
+# ======================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
