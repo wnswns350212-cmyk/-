@@ -3,51 +3,44 @@
 <head>
 <meta charset="UTF-8">
 <title>대학 언론보도 스크랩</title>
+
 <style>
 body {
     font-family: "Noto Sans KR", sans-serif;
     background: #f5f6f8;
     padding: 30px;
 }
-h1 { margin-bottom: 20px; }
-
 .controls {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
     margin-bottom: 20px;
 }
-
 input, select, button {
     padding: 8px 10px;
     border-radius: 6px;
     border: 1px solid #ccc;
 }
-
 button {
-    background: #2f5bea;
+    background: #6c757d;
     color: white;
     border: none;
     cursor: pointer;
 }
-
-button.gray {
-    background: #6c757d;
+button.active {
+    background: #2f5bea;
 }
-
 .article {
     background: white;
     padding: 18px;
     border-radius: 10px;
     margin-bottom: 16px;
 }
-
 .meta {
     font-size: 13px;
     color: #666;
     margin-bottom: 6px;
 }
-
 a.source {
     font-size: 13px;
     color: #2f5bea;
@@ -66,14 +59,23 @@ a.source {
     <select name="category">
         <option value="">전체 카테고리</option>
         {% for c in categories %}
-        <option value="{{ c }}" {% if c == selected_category %}selected{% endif %}>{{ c }}</option>
+        <option value="{{ c }}" {% if c == selected_category %}selected{% endif %}>
+            {{ c }}
+        </option>
         {% endfor %}
     </select>
 
     <button type="submit">검색</button>
-    <button type="submit" name="range" value="all" class="gray">전체</button>
-    <button type="submit" name="range" value="24h" class="gray">24시간</button>
-    <button type="submit" name="scrap" value="1">언론보도 스크랩 자동 작성</button>
+
+    <button type="submit" name="range" value="all"
+        class="{% if range_type == 'all' %}active{% endif %}">
+        전체
+    </button>
+
+    <button type="submit" name="range" value="24h"
+        class="{% if range_type == '24h' %}active{% endif %}">
+        24시간
+    </button>
 </form>
 
 {% for a in articles %}
