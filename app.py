@@ -1,42 +1,44 @@
 from flask import Flask, render_template, request
 from datetime import datetime, timedelta
 import feedparser
+import re
 
 app = Flask(__name__)
 
-GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q=대학교&hl=ko&gl=KR&ceid=KR:ko"
+RSS_URL = "https://news.google.com/rss/search?q=대학교&hl=ko&gl=KR&ceid=KR:ko"
 
 CATEGORIES = {
     "입시": ["수능", "입시", "정시", "수시"],
-    "교육/수업": ["교육", "수업", "강의", "커리큘럼"],
+    "교육/수업": ["교육", "수업", "강의"],
     "연구/학술": ["연구", "학술", "논문"],
     "산학협력": ["협약", "산학", "기업"],
-    "국제교류": ["국제", "해외", "외국인"],
-    "대학정책/행정": ["정책", "총장", "행정"],
-    "평생교육": ["평생교육", "자격과정"],
+    "국제교류": ["국제", "교류"],
+    "대학정책/행정": ["총장", "정책", "행정"],
+    "평생교육": ["평생교육", "자격"],
     "지역사회": ["지역", "지자체"]
 }
 
-def classify_category(title):
-    for category, keywords in CATEGORIES.items():
-        if any(k in title for k in keywords):
-            return category
+def clean_html(text):
+    return re.sub('<.*?>', '', text)
+
+def classify(title):
+    for c, keys in CATEGORIES.items():
+        if any(k in title for k in keys):
+            return c
     return "기타"
 
 def fetch_articles():
-    feed = feedparser.parse(GOOGLE_NEWS_RSS)
+    feed = feedparser.parse(RSS_URL)
     articles = []
 
-    for entry in feed.entries:
-        published = datetime(*entry.published_parsed[:6])
-
+    for e in feed.entries:
+        published = datetime(*e.published_parsed[:6])
         articles.append({
-            "title": entry.title,
-            "summary": entry.summary,
-            "url": entry.link,
+            "title": clean_html(e.title),
+            "summary": clean_html(e.summary),
+            "url": e.link,
             "published_at": published,
-            "category": classify_category(entry.title),
-            "views": 0
+            "category": classify(e.title)
         })
     return articles
 
@@ -45,30 +47,33 @@ def index():
     query = request.args.get("query", "")
     category = request.args.get("category", "")
     range_type = request.args.get("range", "all")
-    scrap = request.args.get("scrap")
 
     articles = fetch_articles()
 
+    # 검색
     if query:
-        articles = [a for a in articles if query in a["title"] or query in a["summary"]]
+        articles = [
+            a for a in articles
+            if query.lower() in a["title"].lower()
+            or query.lower() in a["summary"].lower()
+        ]
 
+    # 카테고리
     if category:
         articles = [a for a in articles if a["category"] == category]
 
+    # 24시간
     if range_type == "24h":
         기준 = datetime.now() - timedelta(hours=24)
         articles = [a for a in articles if a["published_at"] >= 기준]
-
-    if scrap == "1":
-        기준 = datetime.now() - timedelta(hours=24)
-        articles = [a for a in articles if a["published_at"] >= 기준][:6]
 
     return render_template(
         "index.html",
         articles=articles,
         categories=CATEGORIES.keys(),
+        query=query,
         selected_category=category,
-        query=query
+        range_type=range_type
     )
 
 if __name__ == "__main__":
