@@ -1,162 +1,103 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>대학 언론 모니터링</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<title>대학 언론보도 스크랩</title>
+<style>
+body {
+    font-family: "Noto Sans KR", sans-serif;
+    background: #f4f6f9;
+    padding: 30px;
+}
+h1 { margin-bottom: 20px; }
 
-    <style>
-        body {
-            font-family: "Apple SD Gothic Neo", "Noto Sans KR", Arial, sans-serif;
-            background: #f2f4f7;
-            margin: 0;
-            color: #222;
-        }
+.controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
 
-        header {
-            background: #1f3c88;
-            color: white;
-            padding: 20px 30px;
-        }
+input, select, button {
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+}
 
-        header h2 {
-            margin: 0;
-            font-weight: 600;
-            font-size: 22px;
-        }
+button {
+    background: #2f5bea;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
 
-        .container {
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 25px;
-        }
+button.secondary {
+    background: #6c757d;
+}
 
-        /* 검색 영역 */
-        .search-box {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 15px;
-        }
+.article {
+    background: white;
+    padding: 18px;
+    border-radius: 10px;
+    margin-bottom: 14px;
+}
 
-        input[type="text"] {
-            padding: 10px 12px;
-            width: 260px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            font-size: 14px;
-        }
+.meta {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 6px;
+}
 
-        button {
-            padding: 9px 14px;
-            border: none;
-            border-radius: 6px;
-            background: #e6e9f2;
-            color: #1f3c88;
-            font-size: 14px;
-            cursor: pointer;
-        }
-
-        button:hover {
-            background: #d9def0;
-        }
-
-        .active {
-            background: #1f3c88;
-            color: white;
-        }
-
-        hr {
-            border: none;
-            border-top: 1px solid #ddd;
-            margin: 20px 0;
-        }
-
-        /* 기사 카드 */
-        .article {
-            background: white;
-            padding: 18px 20px;
-            margin-bottom: 15px;
-            border-radius: 10px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-        }
-
-        .article h3 {
-            margin: 0 0 6px 0;
-            font-size: 18px;
-            font-weight: 600;
-        }
-
-        .article a {
-            color: #1f3c88;
-            text-decoration: none;
-        }
-
-        .article a:hover {
-            text-decoration: underline;
-        }
-
-        .meta {
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 8px;
-        }
-
-        .summary {
-            font-size: 14px;
-            line-height: 1.5;
-            color: #333;
-        }
-
-        .empty {
-            color: #777;
-            padding: 20px;
-            text-align: center;
-        }
-    </style>
+a.source {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 13px;
+    color: #2f5bea;
+    text-decoration: none;
+}
+</style>
 </head>
+
 <body>
 
-<header>
-    <h2>대학 언론 모니터링 보드</h2>
-</header>
+<h1>📰 대학 언론보도 스크랩</h1>
 
-<div class="container">
+<form class="controls" method="get">
+    <input name="query" placeholder="키워드 검색" value="{{ query }}">
 
-    <!-- 검색 -->
-    <form method="get" class="search-box">
-        <input type="text" name="query" placeholder="키워드 검색" value="{{ query }}">
-        <button type="submit">검색</button>
-    </form>
+    <select name="category">
+        <option value="">전체 카테고리</option>
+        {% for c in categories %}
+        <option value="{{ c }}" {% if c == selected_category %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+    </select>
 
-    <!-- 기능 버튼 -->
-    <div>
-        <button onclick="location.href='/'">전체</button>
-        <button onclick="location.href='/?filter=24h'" class="{{ 'active' if filter_24h }}">24시간</button>
-        <button onclick="location.href='/?board=1'" class="{{ 'active' if board }}">언론보도 스크랩</button>
+    <button type="submit">검색</button>
+
+    <button type="submit" name="range" value="all" class="secondary">전체</button>
+    <button type="submit" name="range" value="24h" class="secondary">24시간</button>
+
+    <button type="submit" name="scrap" value="1">
+        언론보도 스크랩 자동 작성
+    </button>
+</form>
+
+{% for a in articles %}
+<div class="article">
+    <div class="meta">
+        {{ a.category }} |
+        {{ a.published_at.strftime("%Y.%m.%d %H:%M") }} |
+        조회수 {{ a.views }}
     </div>
-
-    <hr>
-
-    <!-- 기사 목록 -->
-    {% for a in articles %}
-        <div class="article">
-            <h3>
-                <a href="{{ a.link }}" target="_blank">{{ a.title }}</a>
-            </h3>
-            <div class="meta">
-                {{ a.published.strftime("%Y.%m.%d %H:%M") }}
-                · {{ a.categories | join(", ") }}
-            </div>
-            <div class="summary">
-                {{ a.summary }}
-            </div>
-        </div>
-    {% endfor %}
-
-    {% if articles|length == 0 %}
-        <div class="empty">표시할 기사가 없습니다.</div>
-    {% endif %}
-
+    <strong>{{ a.title }}</strong>
+    <p>{{ a.summary }}</p>
+    <a href="{{ a.url }}" target="_blank" class="source">[원본]</a>
 </div>
+{% endfor %}
+
+{% if articles|length == 0 %}
+<p>조건에 맞는 기사가 없습니다.</p>
+{% endif %}
+
 </body>
 </html>
