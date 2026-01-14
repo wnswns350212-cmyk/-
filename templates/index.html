@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>한라대학교 뉴스 허브</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f4f7fb;
+}
+header {
+    background: #0b2c5f;
+    color: white;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+}
+header img {
+    height: 45px;
+    margin-right: 15px;
+}
+.container {
+    width: 90%;
+    max-width: 1100px;
+    margin: 30px auto;
+    background: white;
+    padding: 25px;
+    border-radius: 10px;
+}
+.search-box input {
+    padding: 10px;
+    width: 60%;
+}
+.search-box button {
+    padding: 10px 15px;
+    background: #1f5fa5;
+    color: white;
+    border: none;
+}
+.category button {
+    margin: 5px;
+    padding: 7px 12px;
+    border: none;
+    background: #e1e8f0;
+    cursor: pointer;
+}
+.article {
+    border-bottom: 1px solid #ddd;
+    padding: 15px 0;
+}
+.date {
+    font-size: 13px;
+    color: #666;
+}
+.summary {
+    margin-top: 8px;
+    color: #333;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <img src="https://upload.wikimedia.org/wikipedia/commons/7/77/Halla_University_logo.png">
+    <h2>한라대학교 뉴스 허브</h2>
+</header>
+
+<div class="container">
+
+<form class="search-box" action="/search">
+    <input name="query" placeholder="대학 / 입시 / 교육 키워드 검색" required>
+    <button type="submit">검색</button>
+    <label>
+        <input type="checkbox" name="ai" value="1"> 24시간 AI 요약
+    </label>
+</form>
+
+<div class="category">
+{% for c in categories %}
+    <a href="/search?query=대학&category={{c}}">
+        <button>{{c}}</button>
+    </a>
+{% endfor %}
+</div>
+
+{% for a in articles %}
+<div class="article">
+    <b>[{{a.source}}] {{a.title}}</b><br>
+    <span class="date">{{a.date}}</span><br>
+    {% if a.summary %}
+        <div class="summary">🧠 {{a.summary}}</div>
+    {% endif %}
+    <a href="{{a.link}}" target="_blank">원문 보기</a>
+</div>
+{% endfor %}
+
+{% if not articles %}
+<p>검색 결과가 없습니다.</p>
+{% endif %}
+
+</div>
+</body>
+</html>
