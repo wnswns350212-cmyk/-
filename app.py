@@ -5,7 +5,11 @@ import re
 
 app = Flask(__name__)
 
-RSS_URL = "https://news.google.com/rss/search?q=대학교&hl=ko&gl=KR&ceid=KR:ko"
+RSS_URL = (
+    "https://news.google.com/rss/search?"
+    "q=대학교 OR 대학 OR 캠퍼스 OR 총장"
+    "&hl=ko&gl=KR&ceid=KR:ko"
+)
 
 CATEGORIES = {
     "입시": ["수능", "입시", "정시", "수시"],
@@ -18,8 +22,10 @@ CATEGORIES = {
     "지역사회": ["지역", "지자체"]
 }
 
-def clean_html(text):
-    return re.sub('<.*?>', '', text)
+def clean_text(text):
+    text = re.sub('<.*?>', '', text)
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
 
 def classify(title):
     for c, keys in CATEGORIES.items():
@@ -33,45 +39,58 @@ def fetch_articles():
 
     for e in feed.entries:
         published = datetime(*e.published_parsed[:6])
+        title = clean_text(e.title)
+        summary = clean_text(e.summary)
+
         articles.append({
-            "title": clean_html(e.title),
-            "summary": clean_html(e.summary),
+            "title": title,
+            "summary": summary,
+            "search_text": f"{title} {summary}".lower(),
             "url": e.link,
             "published_at": published,
-            "category": classify(e.title)
+            "category": classify(title)
         })
+
     return articles
 
 @app.route("/")
 def index():
-    query = request.args.get("query", "")
+    query = request.args.get("query", "").strip().lower()
     category = request.args.get("category", "")
     range_type = request.args.get("range", "all")
 
     articles = fetch_articles()
 
-    # 검색
+    # 🔍 검색 (가장 먼저, 가장 넓게)
     if query:
         articles = [
             a for a in articles
-            if query.lower() in a["title"].lower()
-            or query.lower() in a["summary"].lower()
+            if query in a["search_text"]
         ]
 
-    # 카테고리
-    if category:
-        articles = [a for a in articles if a["category"] == category]
-
-    # 24시간
+    # ⏰ 24시간 필터
     if range_type == "24h":
         기준 = datetime.now() - timedelta(hours=24)
-        articles = [a for a in articles if a["published_at"] >= 기준]
+        articles = [
+            a for a in articles
+            if a["published_at"] >= 기준
+        ]
+
+    # 🏷 카테고리 (검색 결과 기준)
+    if category:
+        articles = [
+            a for a in articles
+            if a["category"] == category
+        ]
+
+    # 최신순 정렬 (실무 중요)
+    articles.sort(key=lambda x: x["published_at"], reverse=True)
 
     return render_template(
         "index.html",
         articles=articles,
         categories=CATEGORIES.keys(),
-        query=query,
+        query=request.args.get("query", ""),
         selected_category=category,
         range_type=range_type
     )
