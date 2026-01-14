@@ -1,73 +1,109 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<title>대학 뉴스 검색</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<style>
-/* 🔵 기존 디자인 유지 */
-body { font-family: Arial, sans-serif; background:#f4f7fb; margin:0; }
-header { background:#0b2c5f; color:#fff; padding:20px; display:flex; align-items:center; }
-header img { height:45px; margin-right:15px; }
-.container { width:90%; max-width:1100px; margin:30px auto; background:#fff; padding:30px; border-radius:12px; }
-
-button, .tab {
-    padding:8px 14px;
-    border:none;
-    border-radius:20px;
-    cursor:pointer;
-    background:#e0e6f0;
-    margin-right:6px;
-}
-.tab.active { background:#1f5fa5; color:white; }
-
-.article { border-bottom:1px solid #ddd; padding:15px 0; }
-.article h3 { margin:0 0 5px 0; }
-.meta { font-size:13px; color:#666; }
-.summary { color:#333; margin:6px 0; }
-a.btn { display:inline-block; padding:5px 10px; background:#1f5fa5; color:white; border-radius:5px; text-decoration:none; font-size:13px; }
-</style>
+    <meta charset="UTF-8">
+    <title>대학 언론보도 스크랩</title>
+    <style>
+        body {
+            font-family: "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+            padding: 30px;
+        }
+        .container {
+            max-width: 1100px;
+            margin: auto;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        .search-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        input, select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        button {
+            padding: 10px 14px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn {
+            background: #e9edf3;
+            color: #333;
+        }
+        .btn.active {
+            background: #2563eb;
+            color: #fff;
+        }
+        .btn.primary {
+            background: #2563eb;
+            color: #fff;
+        }
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .meta {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+        .title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .summary {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .origin {
+            font-size: 13px;
+            color: #2563eb;
+            text-decoration: none;
+        }
+    </style>
 </head>
-
 <body>
-
-<header>
-<img src="https://upload.wikimedia.org/wikipedia/commons/7/77/Halla_University_logo.png">
-<h2>대학 뉴스 통합 검색</h2>
-</header>
-
 <div class="container">
+    <h1>📄 대학 언론보도 스크랩</h1>
 
-<form method="get">
-<input type="text" name="query" value="{{ query }}" placeholder="검색어 입력" required>
+    <form class="search-bar" method="get">
+        <input type="text" name="query" placeholder="키워드 검색" value="{{ query }}">
+        <select name="category">
+            <option value="전체" {{ 'selected' if category=='전체' else '' }}>전체 카테고리</option>
+            <option value="대학정책">대학정책</option>
+            <option value="입시">입시</option>
+            <option value="평생교육">평생교육</option>
+            <option value="기타">기타</option>
+        </select>
+        <button class="btn primary">검색</button>
 
-<button name="time" value="all" class="tab {{ 'active' if time_mode=='all' else '' }}">전체</button>
-<button name="time" value="24h" class="tab {{ 'active' if time_mode=='24h' else '' }}">24시간</button>
+        <button name="time" value="all"
+                class="btn {{ 'active' if time_filter=='all' else '' }}">전체</button>
+        <button name="time" value="24h"
+                class="btn {{ 'active' if time_filter=='24h' else '' }}">24시간</button>
+    </form>
 
-<br><br>
-
-{% for c in categories %}
-<button name="category" value="{{ c }}" class="tab {{ 'active' if category==c else '' }}">
-{{ c }}
-</button>
-{% endfor %}
-</form>
-
-<hr>
-
-{% if articles %}
-{% for a in articles %}
-<div class="article">
-<h3>{{ a.title }}</h3>
-<div class="meta">{{ a.date.strftime('%Y.%m.%d. %H:%M') }}</div>
-<div class="summary">{{ a.summary }}</div>
-<a href="{{ a.link }}" target="_blank" class="btn">원본</a>
-</div>
-{% endfor %}
-{% else %}
-<p>검색 결과가 없습니다.</p>
-{% endif %}
+    {% for a in articles %}
+    <div class="card">
+        <div class="meta">{{ a.category }} | {{ a.date }}</div>
+        <div class="title">{{ a.title }}</div>
+        <div class="summary">{{ a.summary }}</div>
+        <a class="origin" href="{{ a.link }}" target="_blank">[원본]</a>
+    </div>
+    {% endfor %}
 
 </div>
 </body>
