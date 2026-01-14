@@ -1,123 +1,66 @@
-from flask import Flask, render_template, request
-import feedparser
-import html
-from datetime import datetime, timedelta
+from flask import Flask, render_template, request, jsonify
 import os
 import openai
 
 app = Flask(__name__)
 
-# 🔑 OpenAI API Key (Render → Environment Variables에 설정)
-openai.api_key = os.environ.get("OPENAI_API_KEY")
+# OpenAI API Key (Render Environment Variable)
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# =====================
-# 카테고리 정의
-# =====================
-CATEGORIES = {
-    "한라대": ["한라대", "한라대학교"],
-    "대학이슈": ["대학", "대학교", "총장", "캠퍼스"],
-    "교육": ["교육", "교육부", "학습", "교과"],
-    "청년": ["청년", "취업", "청년정책"],
-    "정책": ["정책", "정부", "지원"]
-}
 
-# =====================
-# 유틸 함수
-# =====================
-def parse_date(entry):
-    try:
-        if entry.get("published_parsed"):
-            return datetime(*entry.published_parsed[:6])
-    except:
-        pass
-    return None
+@app.route("/")
+def home():
+    return render_template("index.html")
 
-def format_date(dt):
-    if not dt:
-        return "날짜 정보 없음"
-    return dt.strftime("%Y.%m.%d. %H:%M")
 
-def contains_keyword(text, keywords):
-    return any(k in text for k in keywords)
+@app.route("/ai-summary", methods=["POST"])
+def ai_summary():
+    data = request.json
+    articles = data.get("articles", "")
 
-def ai_summary(text):
+    if not articles.strip():
+        return jsonify({"result": "❗ 기사 내용이 없습니다."})
+
+    prompt = f"""
+다음은 최근 24시간 이내 뉴스 기사 모음이다.
+
+너는 '대학 뉴스 큐레이터 AI'다.
+
+요구사항:
+1. 전체 기사 흐름을 5줄 이내로 요약
+2. 대학, 교육, 청년, 연구, 입시, 취업, 캠퍼스, 교수, 정부 교육 정책과
+   직접적으로 관련된 기사만 선별
+3. 중요도가 높은 기사 TOP 5를 선정
+4. 각 기사마다 아래 형식으로 작성
+
+형식:
+[24시간 대학 핵심 브리핑]
+
+[전체 요약]
+- bullet 형식 5줄 이내
+
+[대학 중요 기사 TOP 5]
+1️⃣ 제목
+- 핵심 요약: (2줄)
+- 대학에 중요한 이유: (1줄)
+
+기사 내용:
+{articles}
+"""
+
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "뉴스 기사를 2~3줄로 요약해줘."},
-                {"role": "user", "content": text}
-            ]
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3
         )
-        return response.choices[0].message.content
-    except:
-        return "요약 정보를 불러올 수 없습니다."
 
-# =====================
-# 라우트
-# =====================
-@app.route("/")
-def index():
-    return render_template("index.html", articles=[], categories=CATEGORIES)
+        result = response.choices[0].message.content
+        return jsonify({"result": result})
 
-@app.route("/search")
-def search():
-    query = request.args.get("query", "")
-    category = request.args.get("category")
-    ai_mode = request.args.get("ai") == "1"
+    except Exception as e:
+        return jsonify({"result": f"❌ 오류 발생: {str(e)}"})
 
-    feeds = [
-        ("Google News", f"https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"),
-        ("Daum News", f"https://news.daum.net/rss/search?q={query}")
-    ]
-
-    articles = []
-    seen = set()
-    now = datetime.now()
-
-    for source, url in feeds:
-        feed = feedparser.parse(url)
-        for entry in feed.entries:
-            title = html.unescape(entry.title)
-            text = title + entry.get("summary", "")
-            date = parse_date(entry)
-
-            if title in seen:
-                continue
-
-            # 카테고리 필터
-            if category and not contains_keyword(text, CATEGORIES.get(category, [])):
-                continue
-
-            # 24시간 필터
-            if ai_mode and date:
-                if date < now - timedelta(hours=24):
-                    continue
-
-            seen.add(title)
-
-            summary = ai_summary(text) if ai_mode else ""
-
-            articles.append({
-                "source": source,
-                "title": title,
-                "date": format_date(date),
-                "link": entry.link,
-                "summary": summary,
-                "parsed_date": date or datetime.min
-            })
-
-    articles.sort(key=lambda x: x["parsed_date"], reverse=True)
-
-    return render_template(
-        "index.html",
-        articles=articles,
-        categories=CATEGORIES,
-        query=query,
-        selected_category=category,
-        ai_mode=ai_mode
-    )
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=10000)
