@@ -2,120 +2,161 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>대학 뉴스 모니터링</title>
+    <title>대학 언론 모니터링</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background: #f4f6f9;
+            font-family: "Apple SD Gothic Neo", "Noto Sans KR", Arial, sans-serif;
+            background: #f2f4f7;
             margin: 0;
+            color: #222;
         }
+
         header {
-            background: #0b4fa2;
+            background: #1f3c88;
             color: white;
-            padding: 15px 20px;
-            display: flex;
-            align-items: center;
+            padding: 20px 30px;
         }
-        header img {
-            height: 40px;
-            margin-right: 15px;
-        }
-        header h1 {
-            font-size: 20px;
+
+        header h2 {
             margin: 0;
+            font-weight: 600;
+            font-size: 22px;
         }
+
         .container {
-            padding: 20px;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 25px;
         }
+
+        /* 검색 영역 */
         .search-box {
+            display: flex;
+            gap: 8px;
             margin-bottom: 15px;
         }
-        .search-box input {
-            padding: 8px;
-            width: 70%;
-            max-width: 300px;
+
+        input[type="text"] {
+            padding: 10px 12px;
+            width: 260px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 14px;
         }
-        .search-box button {
-            padding: 8px 12px;
-        }
-        .categories button {
-            margin: 5px 5px 10px 0;
-            padding: 6px 10px;
+
+        button {
+            padding: 9px 14px;
             border: none;
-            background: #e0e6ef;
+            border-radius: 6px;
+            background: #e6e9f2;
+            color: #1f3c88;
+            font-size: 14px;
             cursor: pointer;
         }
-        .categories button.active {
-            background: #0b4fa2;
+
+        button:hover {
+            background: #d9def0;
+        }
+
+        .active {
+            background: #1f3c88;
             color: white;
         }
+
+        hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 20px 0;
+        }
+
+        /* 기사 카드 */
         .article {
             background: white;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 6px;
+            padding: 18px 20px;
+            margin-bottom: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
         }
+
         .article h3 {
-            margin: 0 0 5px 0;
-            font-size: 16px;
+            margin: 0 0 6px 0;
+            font-size: 18px;
+            font-weight: 600;
         }
+
+        .article a {
+            color: #1f3c88;
+            text-decoration: none;
+        }
+
+        .article a:hover {
+            text-decoration: underline;
+        }
+
         .meta {
             font-size: 12px;
             color: #666;
+            margin-bottom: 8px;
+        }
+
+        .summary {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #333;
+        }
+
+        .empty {
+            color: #777;
+            padding: 20px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
 
 <header>
-    <img src="https://www.halla.ac.kr/sites/halla/images/common/logo.png" alt="한라대 로고">
-    <h1>대학 뉴스 모니터링</h1>
+    <h2>대학 언론 모니터링 보드</h2>
 </header>
 
 <div class="container">
 
     <!-- 검색 -->
-    <form class="search-box" method="get">
+    <form method="get" class="search-box">
         <input type="text" name="query" placeholder="키워드 검색" value="{{ query }}">
         <button type="submit">검색</button>
     </form>
 
-    <!-- 카테고리 -->
-    <div class="categories">
-        {% for c in ["한라대", "대학이슈", "교육", "청년", "정책"] %}
-            <button
-                onclick="location.href='/?category={{ c }}'"
-                class="{% if category == c %}active{% endif %}">
-                {{ c }}
-            </button>
-        {% endfor %}
+    <!-- 기능 버튼 -->
+    <div>
         <button onclick="location.href='/'">전체</button>
+        <button onclick="location.href='/?filter=24h'" class="{{ 'active' if filter_24h }}">24시간</button>
+        <button onclick="location.href='/?board=1'" class="{{ 'active' if board }}">언론보도 스크랩</button>
     </div>
 
-    <!-- 기사 리스트 -->
+    <hr>
+
+    <!-- 기사 목록 -->
     {% for a in articles %}
         <div class="article">
             <h3>
                 <a href="{{ a.link }}" target="_blank">{{ a.title }}</a>
             </h3>
             <div class="meta">
-                {{ a.category }} |
-                {% if a.published %}
-                    {{ a.published.strftime("%Y.%m.%d %H:%M") }}
-                {% else %}
-                    날짜 정보 없음
-                {% endif %}
+                {{ a.published.strftime("%Y.%m.%d %H:%M") }}
+                · {{ a.categories | join(", ") }}
+            </div>
+            <div class="summary">
+                {{ a.summary }}
             </div>
         </div>
     {% endfor %}
 
     {% if articles|length == 0 %}
-        <p>검색 결과가 없습니다.</p>
+        <div class="empty">표시할 기사가 없습니다.</div>
     {% endif %}
 
 </div>
-
 </body>
 </html>
