@@ -1,99 +1,105 @@
-from flask import Flask, render_template, request
+from flask import Flask, request, render_template
+import requests
+import os
 from datetime import datetime, timedelta
-import feedparser
-import re
+from dateutil import parser
 
 app = Flask(__name__)
 
-RSS_URL = (
-    "https://news.google.com/rss/search?"
-    "q=대학교 OR 대학 OR 캠퍼스 OR 총장"
-    "&hl=ko&gl=KR&ceid=KR:ko"
-)
+NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID")
+NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET")
+
+NAVER_NEWS_API = "https://openapi.naver.com/v1/search/news.json"
 
 CATEGORIES = {
-    "입시": ["수능", "입시", "정시", "수시"],
-    "교육/수업": ["교육", "수업", "강의"],
-    "연구/학술": ["연구", "학술", "논문"],
-    "산학협력": ["협약", "산학", "기업"],
-    "국제교류": ["국제", "교류"],
-    "대학정책/행정": ["총장", "정책", "행정"],
-    "평생교육": ["평생교육", "자격"],
-    "지역사회": ["지역", "지자체"]
+    "전체": [],
+    "한라대": ["한라대학교", "한라대"],
+    "대학이슈": ["대학", "대학교", "캠퍼스"],
+    "교육": ["교육부", "교육정책", "교육"],
+    "청년": ["청년", "청년정책"],
+    "정책": ["정책", "정부"]
 }
 
-def clean_text(text):
-    text = re.sub('<.*?>', '', text)
-    text = re.sub(r'\s+', ' ', text)
-    return text.strip()
+def fetch_news(query, display=100):
+    headers = {
+        "X-Naver-Client-Id": NAVER_CLIENT_ID,
+        "X-Naver-Client-Secret": NAVER_CLIENT_SECRET
+    }
+    params = {
+        "query": query,
+        "display": display,
+        "sort": "date"
+    }
+    res = requests.get(NAVER_NEWS_API, headers=headers, params=params)
+    if res.status_code != 200:
+        return []
 
-def classify(title):
-    for c, keys in CATEGORIES.items():
-        if any(k in title for k in keys):
-            return c
-    return "기타"
-
-def fetch_articles():
-    feed = feedparser.parse(RSS_URL)
+    items = res.json().get("items", [])
     articles = []
 
-    for e in feed.entries:
-        published = datetime(*e.published_parsed[:6])
-        title = clean_text(e.title)
-        summary = clean_text(e.summary)
+    for item in items:
+        try:
+            published = parser.parse(item["pubDate"])
+        except:
+            continue
 
         articles.append({
-            "title": title,
-            "summary": summary,
-            "search_text": f"{title} {summary}".lower(),
-            "url": e.link,
-            "published_at": published,
-            "category": classify(title)
+            "title": item["title"].replace("<b>", "").replace("</b>", ""),
+            "summary": item["description"].replace("<b>", "").replace("</b>", ""),
+            "link": item["link"],
+            "date": published
         })
 
     return articles
 
-@app.route("/")
+
+def filter_by_time(articles, mode):
+    if mode != "24h":
+        return articles
+
+    limit = datetime.now() - timedelta(hours=24)
+    return [a for a in articles if a["date"] >= limit]
+
+
+def filter_by_category(articles, category):
+    if category == "전체":
+        return articles
+
+    keywords = CATEGORIES.get(category, [])
+    result = []
+
+    for a in articles:
+        text = a["title"] + a["summary"]
+        if any(k in text for k in keywords):
+            result.append(a)
+
+    return result
+
+
+@app.route("/", methods=["GET"])
 def index():
-    query = request.args.get("query", "").strip().lower()
-    category = request.args.get("category", "")
-    range_type = request.args.get("range", "all")
+    query = request.args.get("query", "")
+    category = request.args.get("category", "전체")
+    time_mode = request.args.get("time", "all")
 
-    articles = fetch_articles()
-
-    # 🔍 검색 (가장 먼저, 가장 넓게)
+    articles = []
     if query:
-        articles = [
-            a for a in articles
-            if query in a["search_text"]
-        ]
+        articles = fetch_news(query)
+        articles = filter_by_time(articles, time_mode)
+        articles = filter_by_category(articles, category)
 
-    # ⏰ 24시간 필터
-    if range_type == "24h":
-        기준 = datetime.now() - timedelta(hours=24)
-        articles = [
-            a for a in articles
-            if a["published_at"] >= 기준
-        ]
-
-    # 🏷 카테고리 (검색 결과 기준)
-    if category:
-        articles = [
-            a for a in articles
-            if a["category"] == category
-        ]
-
-    # 최신순 정렬 (실무 중요)
-    articles.sort(key=lambda x: x["published_at"], reverse=True)
+        articles.sort(key=lambda x: x["date"], reverse=True)
 
     return render_template(
         "index.html",
         articles=articles,
-        categories=CATEGORIES.keys(),
-        query=request.args.get("query", ""),
-        selected_category=category,
-        range_type=range_type
+        query=query,
+        category=category,
+        time_mode=time_mode,
+        categories=CATEGORIES.keys()
     )
 
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
