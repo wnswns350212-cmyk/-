@@ -1,106 +1,75 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-<title>한라대학교 뉴스 허브</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background: #f4f7fb;
-}
-header {
-    background: #0b2c5f;
-    color: white;
-    padding: 20px;
-    display: flex;
-    align-items: center;
-}
-header img {
-    height: 45px;
-    margin-right: 15px;
-}
-.container {
-    width: 90%;
-    max-width: 1100px;
-    margin: 30px auto;
-    background: white;
-    padding: 25px;
-    border-radius: 10px;
-}
-.search-box input {
-    padding: 10px;
-    width: 60%;
-}
-.search-box button {
-    padding: 10px 15px;
-    background: #1f5fa5;
-    color: white;
-    border: none;
-}
-.category button {
-    margin: 5px;
-    padding: 7px 12px;
-    border: none;
-    background: #e1e8f0;
-    cursor: pointer;
-}
-.article {
-    border-bottom: 1px solid #ddd;
-    padding: 15px 0;
-}
-.date {
-    font-size: 13px;
-    color: #666;
-}
-.summary {
-    margin-top: 8px;
-    color: #333;
-}
-</style>
+    <meta charset="UTF-8">
+    <title>기사 정리</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f9f9f9;
+        }
+        h1 {
+            margin-bottom: 10px;
+        }
+        textarea {
+            width: 100%;
+            height: 250px;
+            padding: 10px;
+            font-size: 14px;
+        }
+        button {
+            margin-top: 15px;
+            padding: 12px 20px;
+            font-size: 15px;
+            cursor: pointer;
+        }
+        #summaryResult {
+            white-space: pre-wrap;
+            background: #ffffff;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 8px;
+            line-height: 1.6;
+        }
+    </style>
 </head>
-
 <body>
 
-<header>
-    <img src="https://upload.wikimedia.org/wikipedia/commons/7/77/Halla_University_logo.png">
-    <h2>한라대학교 뉴스 허브</h2>
-</header>
+<h1>📰 24시간 기사 정리</h1>
+<p>최근 24시간 이내 기사 내용을 아래에 붙여넣고 AI 요약을 누르세요.</p>
 
-<div class="container">
+<textarea id="articleInput" placeholder="기사 여러 개를 그대로 붙여넣으세요"></textarea>
 
-<form class="search-box" action="/search">
-    <input name="query" placeholder="대학 / 입시 / 교육 키워드 검색" required>
-    <button type="submit">검색</button>
-    <label>
-        <input type="checkbox" name="ai" value="1"> 24시간 AI 요약
-    </label>
-</form>
+<br>
+<button id="aiSummaryBtn">🤖 24시간 AI 요약</button>
 
-<div class="category">
-{% for c in categories %}
-    <a href="/search?query=대학&category={{c}}">
-        <button>{{c}}</button>
-    </a>
-{% endfor %}
-</div>
+<div id="summaryResult"></div>
 
-{% for a in articles %}
-<div class="article">
-    <b>[{{a.source}}] {{a.title}}</b><br>
-    <span class="date">{{a.date}}</span><br>
-    {% if a.summary %}
-        <div class="summary">🧠 {{a.summary}}</div>
-    {% endif %}
-    <a href="{{a.link}}" target="_blank">원문 보기</a>
-</div>
-{% endfor %}
+<script>
+document.getElementById("aiSummaryBtn").addEventListener("click", async () => {
+    const articles = document.getElementById("articleInput").value;
+    const resultDiv = document.getElementById("summaryResult");
 
-{% if not articles %}
-<p>검색 결과가 없습니다.</p>
-{% endif %}
+    resultDiv.innerText = "⏳ AI가 대학 관련 핵심 뉴스를 분석 중입니다...";
 
-</div>
+    try {
+        const response = await fetch("/ai-summary", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ articles })
+        });
+
+        const data = await response.json();
+        resultDiv.innerText = data.result;
+
+    } catch (error) {
+        resultDiv.innerText = "❌ 서버 오류가 발생했습니다.";
+    }
+});
+</script>
+
 </body>
 </html>
