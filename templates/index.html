@@ -1,74 +1,71 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>기사 정리</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 40px;
-            background-color: #f9f9f9;
-        }
-        h1 {
-            margin-bottom: 10px;
-        }
-        textarea {
-            width: 100%;
-            height: 250px;
-            padding: 10px;
-            font-size: 14px;
-        }
-        button {
-            margin-top: 15px;
-            padding: 12px 20px;
-            font-size: 15px;
-            cursor: pointer;
-        }
-        #summaryResult {
-            white-space: pre-wrap;
-            background: #ffffff;
-            padding: 20px;
-            margin-top: 20px;
-            border-radius: 8px;
-            line-height: 1.6;
-        }
-    </style>
+<meta charset="utf-8">
+<title>대학교 뉴스 대시보드</title>
+<style>
+body { font-family: Arial; background:#f4f7fb; margin:0; }
+header {
+  background:#0b2c5f; color:white; padding:15px;
+  display:flex; align-items:center;
+}
+header img { height:45px; margin-right:15px; }
+.container { width:90%; margin:20px auto; }
+.article {
+  background:white; padding:15px; margin-bottom:10px;
+  border-radius:8px;
+}
+.category { color:#1f5fa5; font-weight:bold; }
+.summary { font-size:14px; color:#333; margin-top:8px; }
+button { padding:8px 12px; background:#1f5fa5; color:white; border:none; }
+</style>
 </head>
+
 <body>
+<header>
+  <img src="https://upload.wikimedia.org/wikipedia/commons/7/77/Halla_University_logo.png">
+  <h2>대학 뉴스 통합 대시보드</h2>
+</header>
 
-<h1>📰 24시간 기사 정리</h1>
-<p>최근 24시간 이내 기사 내용을 아래에 붙여넣고 AI 요약을 누르세요.</p>
+<div class="container">
 
-<textarea id="articleInput" placeholder="기사 여러 개를 그대로 붙여넣으세요"></textarea>
+<form method="get">
+  <input name="query" placeholder="검색어">
+  <button type="submit">검색</button>
+</form>
 
 <br>
-<button id="aiSummaryBtn">🤖 24시간 AI 요약</button>
 
-<div id="summaryResult"></div>
+{% for cat in ["한라대","대학이슈","교육","청년","정책"] %}
+<a href="/?category={{cat}}"><button>{{cat}}</button></a>
+{% endfor %}
+
+<button onclick="loadTop5()">📌 오늘의 대학 중요 이슈 TOP 5</button>
+
+<hr>
+
+<div id="top5"></div>
+
+{% for a in articles %}
+<div class="article">
+  <div class="category">[{{a.category}}] {{a.source}} | {{a.date}}</div>
+  <b>{{a.title}}</b>
+  <div class="summary">AI 요약: {{a.summary}}</div>
+  <a href="{{a.link}}" target="_blank">원문 보기</a>
+</div>
+{% endfor %}
+
+</div>
 
 <script>
-document.getElementById("aiSummaryBtn").addEventListener("click", async () => {
-    const articles = document.getElementById("articleInput").value;
-    const resultDiv = document.getElementById("summaryResult");
-
-    resultDiv.innerText = "⏳ AI가 대학 관련 핵심 뉴스를 분석 중입니다...";
-
-    try {
-        const response = await fetch("/ai-summary", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ articles })
-        });
-
-        const data = await response.json();
-        resultDiv.innerText = data.result;
-
-    } catch (error) {
-        resultDiv.innerText = "❌ 서버 오류가 발생했습니다.";
-    }
-});
+function loadTop5() {
+  fetch("/top5")
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById("top5").innerHTML =
+        "<h3>오늘의 TOP 5</h3><pre>"+data.result+"</pre>";
+    });
+}
 </script>
 
 </body>
