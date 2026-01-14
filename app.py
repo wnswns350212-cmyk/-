@@ -1,146 +1,154 @@
 import os
-import html
 import feedparser
-from flask import Flask, render_template, request, jsonify
-from datetime import datetime, date
+from flask import Flask, render_template, request
+from datetime import datetime, timedelta
 import openai
 
-# ======================
-# 기본 설정
-# ======================
+# OpenAI 설정
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
 app = Flask(__name__)
-openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-# ======================
-# 카테고리 정의
-# ======================
-CATEGORIES = {
-    "한라대": ["한라", "한라대학교"],
-    "대학이슈": ["대학", "총장", "캠퍼스", "학과"],
-    "교육": ["교육부", "교육", "교원"],
-    "청년": ["청년", "취업", "일자리"],
-    "정책": ["정책", "지원", "재정", "법안"],
-}
-
-NEWS_FEEDS = [
-    ("Google News", "https://news.google.com/rss/search?q=대학&hl=ko&gl=KR&ceid=KR:ko"),
-    ("Daum News", "https://news.daum.net/rss/search?q=대학"),
+# ===============================
+# 설정
+# ===============================
+RSS_FEEDS = [
+    "https://news.google.com/rss/search?q=대학",
+    "https://news.google.com/rss/search?q=교육",
+    "https://news.google.com/rss/search?q=청년",
+    "https://news.google.com/rss/search?q=정책",
+    "https://news.google.com/rss/search?q=한라대학교"
 ]
 
-# ======================
-# 유틸 함수
-# ======================
-def parse_date(entry):
-    try:
-        if entry.get("published_parsed"):
-            return datetime(*entry.published_parsed[:6])
-    except:
-        pass
-    return None
+CATEGORIES = {
+    "한라대": ["한라대학교", "한라대"],
+    "대학이슈": ["대학", "캠퍼스"],
+    "대학": ["대학"],
+    "교육": ["교육"],
+    "청년": ["청년"],
+    "정책": ["정책"]
+}
 
-def format_date(dt):
-    return dt.strftime("%Y.%m.%d. %H:%M") if dt else "날짜 없음"
-
-def categorize(title):
-    for cat, keywords in CATEGORIES.items():
-        if any(k in title for k in keywords):
-            return cat
-    return "기타"
-
+# ===============================
+# AI 요약 함수
+# ===============================
 def ai_summary(text):
     try:
-        response = openai.ChatCompletion.create(
+        res = openai.ChatCompletion.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "너는 대학 홍보팀을 위한 뉴스 요약 AI야."},
-                {"role": "user", "content": f"다음 기사를 2~3줄로 요약해줘:\n{text}"}
-            ],
-            max_tokens=120
+                {
+                    "role": "system",
+                    "content": "너는 대학 홍보팀을 돕는 뉴스 요약 AI다. 핵심만 2~3줄로 요약해라."
+                },
+                {
+                    "role": "user",
+                    "content": text[:1500]
+                }
+            ]
         )
-        return response.choices[0].message.content.strip()
-    except:
-        return "요약 생성 실패"
+        return res.choices[0].message.content.strip()
+    except Exception:
+        return "요약을 불러올 수 없습니다."
 
-# ======================
-# 메인 뉴스 수집
-# ======================
-def collect_news():
+# ===============================
+# 뉴스 수집
+# ===============================
+def fetch_news():
     articles = []
     seen = set()
 
-    for source, url in NEWS_FEEDS:
+    for url in RSS_FEEDS:
         feed = feedparser.parse(url)
-        for entry in feed.entries:
-            title = html.unescape(entry.title)
+        for e in feed.entries:
+            title = e.get("title", "")
+            link = e.get("link", "")
+            published = e.get("published", "")
+
             if title in seen:
                 continue
             seen.add(title)
 
-            dt = parse_date(entry)
+            try:
+                pub_dt = datetime(*e.published_parsed[:6])
+            except Exception:
+                pub_dt = datetime.now()
+
             summary = ai_summary(title)
 
             articles.append({
                 "title": title,
-                "source": source,
-                "date": format_date(dt),
-                "raw_date": dt,
-                "category": categorize(title),
-                "summary": summary,
-                "link": entry.link
+                "link": link,
+                "published": pub_dt,
+                "published_str": pub_dt.strftime("%Y.%m.%d. %H:%M"),
+                "summary": summary
             })
 
-    articles.sort(key=lambda x: x["raw_date"] or datetime.min, reverse=True)
+    articles.sort(key=lambda x: x["published"], reverse=True)
     return articles
 
-ALL_ARTICLES = collect_news()
+# ===============================
+# 중요 기사 TOP5 (오늘 기준)
+# ===============================
+def top5_today(articles):
+    today = datetime.now().date()
+    today_articles = [a for a in articles if a["published"].date() == today]
 
-# ======================
-# 라우트
-# ======================
-@app.route("/")
+    scored = []
+    for a in today_articles:
+        prompt = f"""
+다음 뉴스가 대학에서 얼마나 중요한지 1~10점으로 평가해라.
+
+뉴스 제목: {a['title']}
+"""
+        try:
+            res = openai.ChatCompletion.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            score = int("".join(filter(str.isdigit, res.choices[0].message.content)))
+        except Exception:
+            score = 0
+
+        scored.append((score, a))
+
+    scored.sort(reverse=True, key=lambda x: x[0])
+    return [a for _, a in scored[:5]]
+
+# ===============================
+# 메인 라우트
+# ===============================
+@app.route("/", methods=["GET"])
 def index():
     query = request.args.get("query", "")
     category = request.args.get("category", "")
+    show_top5 = request.args.get("top5")
 
-    filtered = ALL_ARTICLES
+    articles = fetch_news()
 
+    # 검색 필터
     if query:
-        filtered = [a for a in filtered if query in a["title"]]
+        articles = [a for a in articles if query in a["title"]]
 
-    if category:
-        filtered = [a for a in filtered if a["category"] == category]
+    # 카테고리 필터
+    if category and category in CATEGORIES:
+        keywords = CATEGORIES[category]
+        articles = [
+            a for a in articles
+            if any(k in a["title"] for k in keywords)
+        ]
 
-    return render_template("index.html", articles=filtered)
+    top5 = top5_today(articles) if show_top5 else []
 
-@app.route("/top5")
-def top5():
-    today = date.today()
-    today_articles = [
-        a for a in ALL_ARTICLES
-        if a["raw_date"] and a["raw_date"].date() == today
-    ]
-
-    prompt = "\n".join([a["title"] for a in today_articles])
-
-    response = openai.ChatCompletion.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "대학 기획처를 위한 뉴스 분석 AI"},
-            {"role": "user", "content": f"""
-오늘 기사 중 대학에 가장 중요한 기사 5개를 선정하고
-각각 2줄 요약해줘:
-
-{prompt}
-"""}
-        ],
-        max_tokens=500
+    return render_template(
+        "index.html",
+        articles=articles,
+        categories=CATEGORIES.keys(),
+        selected_category=category,
+        query=query,
+        top5=top5
     )
 
-    return jsonify({"result": response.choices[0].message.content})
-
-# ======================
-# 실행
-# ======================
+# ===============================
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
