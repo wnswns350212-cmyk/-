@@ -1,72 +1,102 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-<title>대학교 뉴스 대시보드</title>
-<style>
-body { font-family: Arial; background:#f4f7fb; margin:0; }
-header {
-  background:#0b2c5f; color:white; padding:15px;
-  display:flex; align-items:center;
-}
-header img { height:45px; margin-right:15px; }
-.container { width:90%; margin:20px auto; }
-.article {
-  background:white; padding:15px; margin-bottom:10px;
-  border-radius:8px;
-}
-.category { color:#1f5fa5; font-weight:bold; }
-.summary { font-size:14px; color:#333; margin-top:8px; }
-button { padding:8px 12px; background:#1f5fa5; color:white; border:none; }
-</style>
+    <meta charset="UTF-8">
+    <title>한라대학교 뉴스 브리핑</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { margin:0; font-family: Arial, sans-serif; background:#f4f7fb; }
+        header {
+            background:#003b8e;
+            color:white;
+            padding:15px;
+            display:flex;
+            align-items:center;
+            gap:15px;
+        }
+        header img { height:45px; }
+        .container { padding:20px; max-width:1100px; margin:auto; }
+        .search-box input {
+            padding:10px;
+            width:70%;
+        }
+        .search-box button {
+            padding:10px 15px;
+            background:#003b8e;
+            color:white;
+            border:none;
+        }
+        .categories button {
+            margin:5px;
+            padding:8px 12px;
+            border:none;
+            background:#e3e9f2;
+            cursor:pointer;
+        }
+        .news-card {
+            background:white;
+            padding:15px;
+            margin-top:15px;
+            border-radius:6px;
+        }
+        .summary { color:#444; margin-top:8px; }
+        .top5 {
+            background:#eef3fb;
+            padding:15px;
+            margin-top:20px;
+            border-radius:6px;
+        }
+        a { color:#003b8e; text-decoration:none; }
+    </style>
 </head>
-
 <body>
+
 <header>
-  <img src="https://upload.wikimedia.org/wikipedia/commons/7/77/Halla_University_logo.png">
-  <h2>대학 뉴스 통합 대시보드</h2>
+    <img src="https://www.halla.ac.kr/sites/halla/images/common/logo.png">
+    <h2>한라대학교 뉴스 브리핑</h2>
 </header>
 
 <div class="container">
 
-<form method="get">
-  <input name="query" placeholder="검색어">
-  <button type="submit">검색</button>
-</form>
+    <!-- 검색 -->
+    <form method="get" class="search-box">
+        <input name="query" value="{{ query }}" placeholder="대학 관련 뉴스 검색">
+        <button type="submit">검색</button>
+        <button type="submit" name="top5" value="1">오늘의 TOP5</button>
+    </form>
 
-<br>
+    <!-- 카테고리 -->
+    <div class="categories">
+        {% for c in categories %}
+        <a href="/?category={{ c }}"><button>{{ c }}</button></a>
+        {% endfor %}
+    </div>
 
-{% for cat in ["한라대","대학이슈","교육","청년","정책"] %}
-<a href="/?category={{cat}}"><button>{{cat}}</button></a>
-{% endfor %}
+    <!-- TOP5 -->
+    {% if top5 %}
+    <div class="top5">
+        <h3>📌 오늘의 대학 중요 뉴스 TOP5</h3>
+        {% for n in top5 %}
+        <div class="news-card">
+            <strong>{{ n.title }}</strong>
+            <div>{{ n.published_str }}</div>
+            <div class="summary">{{ n.summary }}</div>
+            <a href="{{ n.link }}" target="_blank">원문 보기</a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 
-<button onclick="loadTop5()">📌 오늘의 대학 중요 이슈 TOP 5</button>
+    <!-- 기사 목록 -->
+    {% for n in articles %}
+    <div class="news-card">
+        <strong>{{ n.title }}</strong>
+        <div>{{ n.published_str }}</div>
+        <div class="summary">{{ n.summary }}</div>
+        <a href="{{ n.link }}" target="_blank">원문 보기</a>
+    </div>
+    {% endfor %}
 
-<hr>
-
-<div id="top5"></div>
-
-{% for a in articles %}
-<div class="article">
-  <div class="category">[{{a.category}}] {{a.source}} | {{a.date}}</div>
-  <b>{{a.title}}</b>
-  <div class="summary">AI 요약: {{a.summary}}</div>
-  <a href="{{a.link}}" target="_blank">원문 보기</a>
 </div>
-{% endfor %}
-
-</div>
-
-<script>
-function loadTop5() {
-  fetch("/top5")
-    .then(res => res.json())
-    .then(data => {
-      document.getElementById("top5").innerHTML =
-        "<h3>오늘의 TOP 5</h3><pre>"+data.result+"</pre>";
-    });
-}
-</script>
-
 </body>
 </html>
