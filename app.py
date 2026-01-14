@@ -6,6 +6,14 @@ from email.utils import parsedate_to_datetime
 
 app = Flask(__name__)
 
+NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID", "").strip()
+NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET", "").strip()
+
+print("=== NAVER ENV CHECK ===")
+print("NAVER_CLIENT_ID:", repr(NAVER_CLIENT_ID))
+print("NAVER_CLIENT_SECRET:", repr(NAVER_CLIENT_SECRET))
+print("=======================")
+
 # =========================
 # 네이버 API 환경변수
 # =========================
